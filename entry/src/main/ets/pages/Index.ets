@@ -36,7 +36,18 @@ struct Index {
   @State child: string = '小雨';
   @State deviceVolume: number = 65;
   @State dailyMinutes: number = 60;
+  @State libraryCardsVisible: boolean = false;
+  @State aiThinkingAngle: number = 0;
+  @State rewardStarScale: number = 1;
+  @State rewardStarOffset: number = 0;
+  @State rewardStarAngle: number = 0;
   private pageScroller: Scroller = new Scroller();
+  private libraryEntranceTimer: number = -1;
+  private aiResponseTimer: number = -1;
+  private aiThinkingTimer: number = -1;
+  private rewardStarTimer: number = -1;
+  private aiThinkingGeneration: number = 0;
+  private rewardGeneration: number = 0;
   private titles: string[] = ['小小探险家', '月亮的礼物', '神奇的种子'];
 
   aboutToAppear(): void {
@@ -44,6 +55,15 @@ struct Index {
     fonts.registerFont({ familyName: FONT_BODY, familySrc: $rawfile('fonts/ResourceHanRoundedCN-Regular.ttf') });
     fonts.registerFont({ familyName: FONT_STRONG, familySrc: $rawfile('fonts/ResourceHanRoundedCN-Bold.ttf') });
     fonts.registerFont({ familyName: FONT_TITLE, familySrc: $rawfile('fonts/ResourceHanRoundedCN-Heavy.ttf') });
+  }
+
+  aboutToDisappear(): void {
+    clearTimeout(this.libraryEntranceTimer);
+    clearTimeout(this.aiResponseTimer);
+    clearTimeout(this.aiThinkingTimer);
+    clearTimeout(this.rewardStarTimer);
+    this.aiThinkingGeneration++;
+    this.rewardGeneration++;
   }
 
   private pageColor(): string {
@@ -59,10 +79,82 @@ struct Index {
 
   private ask(question: string): void {
     if (question.trim().length === 0) { return; }
+    clearTimeout(this.aiResponseTimer);
+    clearTimeout(this.aiThinkingTimer);
+    this.aiThinkingGeneration++;
+    const generation = this.aiThinkingGeneration;
     this.question = question.trim();
-    this.answered = true;
+    this.answered = false;
+    this.aiThinkingAngle = 0;
     this.aiDraft = '';
     this.aiVoiceHint = false;
+    if (!this.reducedMotion) {
+      this.aiThinkingTimer = setTimeout(() => { this.thinkingTiltStep(0, generation); }, 60);
+    }
+    this.aiResponseTimer = setTimeout(() => {
+      if (generation !== this.aiThinkingGeneration) { return; }
+      this.aiThinkingGeneration++;
+      this.answered = true;
+      this.aiThinkingAngle = 0;
+    }, 1050);
+  }
+
+  private thinkingTiltStep(step: number, generation: number): void {
+    if (this.answered || this.reducedMotion || generation !== this.aiThinkingGeneration) { return; }
+    const angles: number[] = [-8, 5, 0];
+    const durations: number[] = [250, 300, 260];
+    this.getUIContext().animateTo({
+      duration: durations[step],
+      curve: Curve.EaseInOut,
+      onFinish: () => {
+        if (step < angles.length - 1 && !this.answered && generation === this.aiThinkingGeneration) {
+          this.aiThinkingTimer = setTimeout(() => { this.thinkingTiltStep(step + 1, generation); }, 35);
+        }
+      }
+    }, () => { this.aiThinkingAngle = angles[step]; });
+  }
+
+  private replayLibraryEntrance(): void {
+    clearTimeout(this.libraryEntranceTimer);
+    this.libraryCardsVisible = false;
+    if (this.reducedMotion) {
+      this.libraryCardsVisible = true;
+      return;
+    }
+    this.libraryEntranceTimer = setTimeout(() => { this.libraryCardsVisible = true; }, 50);
+  }
+
+  private startRewardStarBounce(): void {
+    clearTimeout(this.rewardStarTimer);
+    this.rewardGeneration++;
+    const generation = this.rewardGeneration;
+    this.rewardStarScale = this.reducedMotion ? 1 : 0.45;
+    this.rewardStarOffset = this.reducedMotion ? 0 : 14;
+    this.rewardStarAngle = this.reducedMotion ? 0 : -12;
+    if (!this.reducedMotion) {
+      this.rewardStarTimer = setTimeout(() => { this.rewardStarBounceStep(0, generation); }, 70);
+    }
+  }
+
+  private rewardStarBounceStep(step: number, generation: number): void {
+    if (generation !== this.rewardGeneration || this.reducedMotion) { return; }
+    const scales: number[] = [1.24, 0.92, 1.08, 1];
+    const offsets: number[] = [-12, 3, -4, 0];
+    const angles: number[] = [10, -3, 2, 0];
+    const durations: number[] = [190, 140, 160, 140];
+    this.getUIContext().animateTo({
+      duration: durations[step],
+      curve: Curve.EaseOut,
+      onFinish: () => {
+        if (step < scales.length - 1 && generation === this.rewardGeneration) {
+          this.rewardStarBounceStep(step + 1, generation);
+        }
+      }
+    }, () => {
+      this.rewardStarScale = scales[step];
+      this.rewardStarOffset = offsets[step];
+      this.rewardStarAngle = angles[step];
+    });
   }
 
   private answerText(): string {
@@ -78,7 +170,11 @@ struct Index {
   private go(target: string): void {
     if (target === 'back') { this.view = ''; }
     else if (target === 'read') { this.view = 'read'; this.page = 8; }
-    else if (target === 'finish') { this.complete = true; this.view = 'finish'; }
+    else if (target === 'finish') {
+      this.complete = true;
+      this.view = 'finish';
+      this.startRewardStarBounce();
+    }
     else if (target === 'pair-next') {
       if (this.pairStep < 2) { this.pairStep++; } else { this.connected = true; this.view = ''; }
     } else { if (target === 'pair') { this.pairStep = 0; } this.view = target; }
@@ -247,7 +343,12 @@ struct Index {
       Blank();
       if (link.length > 0) {
         Text(link + ' ›').fontSize(13).fontFamily(FONT_BODY).fontColor(MUTED).onClick(() => {
-          if (target === 'books') { this.libraryAge = -1; this.query = ''; this.filter = '推荐'; }
+          if (target === 'books') {
+            this.libraryAge = -1;
+            this.query = '';
+            this.filter = '推荐';
+            this.replayLibraryEntrance();
+          }
           else if (target === 'themes') { this.filter = '主题'; }
           else if (target === 'growth') { this.tab = 2; }
           else { this.view = target; }
@@ -270,7 +371,11 @@ struct Index {
           Text(name).fontFamily(FONT_STRONG).fontSize(15).fontColor(this.filter === name ? LIGHT : '#7B8394')
             .layoutWeight(1).textAlign(TextAlign.Center).padding({ top: 7, bottom: 7 })
             .backgroundColor(this.filter === name ? '#14CA43' : '#F1F1EB').borderRadius(16)
-            .onClick(() => { this.filter = name; this.libraryAge = -1; });
+            .onClick(() => {
+              this.filter = name;
+              this.libraryAge = -1;
+              this.replayLibraryEntrance();
+            });
         });
       }.width('100%');
       Stack() {
@@ -288,18 +393,26 @@ struct Index {
             else { Text(['🐤', '', '★', '🎓'][i]).fontSize(28).fontColor('#FFCE23').height(28); }
             Text(age).fontFamily(FONT_BODY).fontSize(13).fontColor(INK);
           }.layoutWeight(1).padding({ top: 7, bottom: 7 }).backgroundColor(this.libraryAge === i ? '#DBF8DE' : LIGHT)
-            .borderRadius(14).onClick(() => { this.libraryAge = this.libraryAge === i ? -1 : i; this.filter = '分级'; });
+            .borderRadius(14).onClick(() => {
+              this.libraryAge = this.libraryAge === i ? -1 : i;
+              this.filter = '分级';
+              this.replayLibraryEntrance();
+            });
         });
       }.width('100%');
       this.SectionHeading(this.filter === '分级' ? '适龄绘本' : '精选绘本', '查看全部', 'books');
       if (this.matchingBooks().length > 0) {
         Row({ space: 8 }) {
-          ForEach(this.matchingBooks(), (id: number) => {
+          ForEach(this.matchingBooks(), (id: number, index: number) => {
             Column({ space: 5 }) {
               this.Cover(id, 126);
               Text(this.titles[id]).fontFamily(FONT_STRONG).fontSize(14).fontColor(INK).maxLines(1);
               Text('✓ ' + ['3–6岁', '4–8岁', '5–8岁'][id]).fontFamily(FONT_BODY).fontSize(13).fontColor('#24B856');
             }.layoutWeight(1).padding(6).backgroundColor(LIGHT).borderRadius(15)
+              .translate({ x: 0, y: this.libraryCardsVisible ? 0 : 14 })
+              .scale({ x: this.libraryCardsVisible ? 1 : 0.96, y: this.libraryCardsVisible ? 1 : 0.96 })
+              .opacity(this.libraryCardsVisible ? 1 : 0)
+              .animation({ duration: 420, delay: index * 90, curve: Curve.EaseOut })
               .onClick(() => { this.selected = id; this.view = 'book'; });
           });
         }.width('100%');
@@ -314,7 +427,7 @@ struct Index {
         this.ThemeCard('奇妙的自然', '共10本', 2);
       }.width('100%');
       this.Action('＋ 为阅读器准备新绘本', '#DDF7DC', 'pair');
-    }.padding({ left: 16, right: 16, bottom: 22 });
+    }.padding({ left: 16, right: 16, bottom: 22 }).onAppear(() => { this.replayLibraryEntrance(); });
   }
 
   @Builder
@@ -458,10 +571,26 @@ struct Index {
   }
 
   @Builder
+  CelebrationCharacter() {
+    Stack() {
+      GirlCompanion({ reduced: this.reducedMotion, mode: 'celebrate', canvasSize: 200 });
+      Text('★').fontFamily(FONT_TITLE).fontSize(48).fontColor('#FFD43B')
+        .shadow({ radius: 5, color: '#B5781933', offsetY: 3 })
+        .position({ x: 140, y: 15 })
+        .scale({ x: this.rewardStarScale, y: this.rewardStarScale })
+        .translate({ x: 0, y: this.rewardStarOffset })
+        .rotate({ angle: this.rewardStarAngle });
+    }.width(220).height(250);
+  }
+
+  @Builder
   ChatAvatar(child: boolean) {
     Stack() {
       if (child) {
         Image($r('app.media.home_wave_body')).width(76).height(76).objectFit(ImageFit.Contain).position({ x: -22, y: -14 });
+      } else if (!this.answered) {
+        Image($r('app.media.girl_think_07')).width(72).height(76).objectFit(ImageFit.Contain)
+          .position({ x: -15, y: -16 }).rotate({ angle: this.aiThinkingAngle });
       } else {
         Image($r('app.media.page_boy')).width(75).height(75).objectFit(ImageFit.Contain).position({ x: -16, y: -11 });
       }
@@ -500,6 +629,13 @@ struct Index {
               Text('↗').fontFamily('HarmonyOS Sans').fontSize(20).fontColor('#1BBF53');
             }.width('100%').onClick(() => { this.view = 'listen'; });
           }.padding(16).alignItems(HorizontalAlign.Start).backgroundColor(LIGHT).borderRadius(21).layoutWeight(1);
+        }.width('100%').alignItems(VerticalAlign.Top);
+      } else {
+        Row({ space: 10 }) {
+          this.ChatAvatar(false);
+          Text('让我想一想…').fontFamily(FONT_STRONG).fontSize(16).fontColor('#526681')
+            .padding({ left: 16, right: 20, top: 15, bottom: 15 })
+            .backgroundColor(LIGHT).borderRadius(19);
         }.width('100%').alignItems(VerticalAlign.Top);
       }
       Text('你可能还想问').fontFamily(FONT_STRONG).fontSize(15).fontColor('#7B879A').width('100%');
@@ -706,7 +842,7 @@ struct Index {
         }.width('100%');
       } else if (this.view === 'finish') {
         Column({ space: 12 }) {
-          GirlCompanion({ reduced: this.reducedMotion, mode: 'celebrate', canvasSize: 200 });
+          this.CelebrationCharacter();
           Text('又收获一个好故事！').fontSize(28).fontFamily(FONT_BODY).fontWeight(FontWeight.Bold).fontFamily(FONT_STRONG).fontColor(INK);
           Text('今天的共读旅程完成啦。\n给彼此一个大大的拥抱吧。').fontSize(16).fontFamily(FONT_BODY).fontColor('#5D6C65')
             .textAlign(TextAlign.Center).lineHeight(27);
