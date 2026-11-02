@@ -1,4 +1,3 @@
-import { GirlCompanion } from '../components/GirlCompanion';
 import { HomeWelcomeMascot } from '../components/HomeWelcomeMascot';
 import { ReadingRadar } from '../components/ReadingRadar';
 import { LengthMetrics } from '@kit.ArkUI';
@@ -41,6 +40,12 @@ struct Index {
   @State rewardStarScale: number = 1;
   @State rewardStarOffset: number = 0;
   @State rewardStarAngle: number = 0;
+  @State rewardPoseOpacity: number = 1;
+  @State jumpPoseOpacity: number = 0;
+  @State jumpOffset: number = 0;
+  @State jumpScale: number = 1;
+  @State pageContentOpacity: number = 1;
+  @State pageContentOffset: number = 0;
   private pageScroller: Scroller = new Scroller();
   private libraryEntranceTimer: number = -1;
   private aiResponseTimer: number = -1;
@@ -48,6 +53,7 @@ struct Index {
   private rewardStarTimer: number = -1;
   private aiThinkingGeneration: number = 0;
   private rewardGeneration: number = 0;
+  private pageTransitionGeneration: number = 0;
   private titles: string[] = ['小小探险家', '月亮的礼物', '神奇的种子'];
 
   aboutToAppear(): void {
@@ -64,6 +70,55 @@ struct Index {
     clearTimeout(this.rewardStarTimer);
     this.aiThinkingGeneration++;
     this.rewardGeneration++;
+    this.pageTransitionGeneration++;
+  }
+
+  private transitionPage(change: () => void): void {
+    const generation = ++this.pageTransitionGeneration;
+    if (this.reducedMotion) {
+      change();
+      this.pageContentOpacity = 1;
+      this.pageContentOffset = 0;
+      return;
+    }
+    this.getUIContext().animateTo({
+      duration: 130,
+      curve: Curve.EaseIn,
+      onFinish: () => {
+        if (generation !== this.pageTransitionGeneration) { return; }
+        change();
+        this.pageContentOffset = 12;
+        this.pageContentOpacity = 0;
+        this.getUIContext().animateTo({
+          duration: 240,
+          curve: Curve.EaseOut,
+          onFinish: () => {
+            if (generation !== this.pageTransitionGeneration) { return; }
+            this.pageContentOffset = 0;
+          }
+        }, () => { this.pageContentOpacity = 1; this.pageContentOffset = 0; });
+      }
+    }, () => { this.pageContentOpacity = 0; this.pageContentOffset = -8; });
+  }
+
+  private switchTab(tab: number): void {
+    if (this.tab === tab && this.view.length === 0) {
+      this.pageScroller.scrollTo({ xOffset: 0, yOffset: 0 });
+      return;
+    }
+    this.transitionPage(() => {
+      this.tab = tab;
+      this.view = '';
+      this.pageScroller.scrollTo({ xOffset: 0, yOffset: 0 });
+    });
+  }
+
+  private setView(view: string): void {
+    if (this.view === view) { return; }
+    this.transitionPage(() => {
+      this.view = view;
+      this.pageScroller.scrollTo({ xOffset: 0, yOffset: 0 });
+    });
   }
 
   private pageColor(): string {
@@ -131,6 +186,10 @@ struct Index {
     this.rewardStarScale = this.reducedMotion ? 1 : 0.45;
     this.rewardStarOffset = this.reducedMotion ? 0 : 14;
     this.rewardStarAngle = this.reducedMotion ? 0 : -12;
+    this.rewardPoseOpacity = 1;
+    this.jumpPoseOpacity = 0;
+    this.jumpOffset = 0;
+    this.jumpScale = 1;
     if (!this.reducedMotion) {
       this.rewardStarTimer = setTimeout(() => { this.rewardStarBounceStep(0, generation); }, 70);
     }
@@ -148,12 +207,42 @@ struct Index {
       onFinish: () => {
         if (step < scales.length - 1 && generation === this.rewardGeneration) {
           this.rewardStarBounceStep(step + 1, generation);
+        } else if (generation === this.rewardGeneration) {
+          this.showJumpPose(generation);
         }
       }
     }, () => {
       this.rewardStarScale = scales[step];
       this.rewardStarOffset = offsets[step];
       this.rewardStarAngle = angles[step];
+    });
+  }
+
+  private showJumpPose(generation: number): void {
+    if (generation !== this.rewardGeneration || this.reducedMotion) { return; }
+    this.getUIContext().animateTo({ duration: 240, curve: Curve.EaseInOut }, () => {
+      this.rewardPoseOpacity = 0;
+      this.jumpPoseOpacity = 1;
+    });
+    this.rewardStarTimer = setTimeout(() => { this.happyJumpStep(0, generation); }, 260);
+  }
+
+  private happyJumpStep(step: number, generation: number): void {
+    if (generation !== this.rewardGeneration || this.reducedMotion) { return; }
+    const offsets: number[] = [-22, -48, 0, 0];
+    const scales: number[] = [1.03, 1.02, 0.96, 1];
+    const durations: number[] = [190, 230, 210, 150];
+    this.getUIContext().animateTo({
+      duration: durations[step],
+      curve: Curve.EaseInOut,
+      onFinish: () => {
+        if (step < offsets.length - 1 && generation === this.rewardGeneration) {
+          this.happyJumpStep(step + 1, generation);
+        }
+      }
+    }, () => {
+      this.jumpOffset = offsets[step];
+      this.jumpScale = scales[step];
     });
   }
 
@@ -168,16 +257,25 @@ struct Index {
   }
 
   private go(target: string): void {
-    if (target === 'back') { this.view = ''; }
-    else if (target === 'read') { this.view = 'read'; this.page = 8; }
+    if (target === 'back') { this.setView(''); }
+    else if (target === 'read') { this.page = 8; this.setView('read'); }
     else if (target === 'finish') {
-      this.complete = true;
-      this.view = 'finish';
-      this.startRewardStarBounce();
+      this.transitionPage(() => {
+        this.complete = true;
+        this.view = 'finish';
+        this.pageScroller.scrollTo({ xOffset: 0, yOffset: 0 });
+        this.startRewardStarBounce();
+      });
     }
     else if (target === 'pair-next') {
-      if (this.pairStep < 2) { this.pairStep++; } else { this.connected = true; this.view = ''; }
-    } else { if (target === 'pair') { this.pairStep = 0; } this.view = target; }
+      this.transitionPage(() => {
+        if (this.pairStep < 2) { this.pairStep++; } else { this.connected = true; this.view = ''; this.tab = 4; }
+        this.pageScroller.scrollTo({ xOffset: 0, yOffset: 0 });
+      });
+    } else {
+      if (target === 'pair') { this.pairStep = 0; }
+      this.setView(target);
+    }
   }
 
   @Builder
@@ -199,7 +297,7 @@ struct Index {
           Text(this.child === '小雨' ? '🌼' : '⭐').fontSize(18).fontFamily(FONT_BODY);
           Text(this.child + '  ⌄').fontSize(15).fontFamily(FONT_BODY).fontWeight(FontWeight.Bold).fontFamily(FONT_STRONG).fontColor(INK);
         }.padding({ left: 10, right: 10, top: 8, bottom: 8 }).backgroundColor('#F2F5EE').borderRadius(18)
-          .onClick(() => { this.view = 'profile'; });
+          .onClick(() => { this.setView('profile'); });
       }.width('100%');
     }.padding({ top: 10, bottom: 4 }).width('100%');
   }
@@ -247,7 +345,7 @@ struct Index {
           .fontSize(14).fontFamily(FONT_BODY).fontColor('#7E8A9B');
       }.padding(14).width('100%').backgroundColor('#FFFFFF').borderRadius(22).margin({ top: -23 })
         .shadow({ radius: 12, color: '#64984715', offsetY: 4 }).zIndex(2)
-        .onClick(() => { this.tab = 2; });
+        .onClick(() => { this.switchTab(2); });
       Row({ space: 7 }) {
         this.QuickAction('♥', '每日推荐', '#FF7C8A', 'read');
         this.QuickAction('▣', '我的书架', '#38C4F1', 'library');
@@ -283,7 +381,7 @@ struct Index {
         }.alignItems(HorizontalAlign.Start).layoutWeight(1);
       }.padding(12).width('100%').backgroundColor(LIGHT).borderRadius(21)
         .shadow({ radius: 10, color: '#263C3210', offsetY: 3 })
-        .onClick(() => { this.selected = 0; this.view = 'book'; });
+        .onClick(() => { this.selected = 0; this.setView('book'); });
       Row() {
         Text('今天可以聊聊').fontSize(19).fontFamily(FONT_BODY).fontWeight(FontWeight.Bold).fontFamily(FONT_STRONG).fontColor(INK);
         Blank(); Text('家长小纸条  ›').fontSize(14).fontFamily(FONT_BODY).fontColor(MUTED);
@@ -304,9 +402,9 @@ struct Index {
     }.layoutWeight(1).padding({ top: 10, bottom: 9 }).backgroundColor(LIGHT).borderRadius(17)
       .onClick(() => {
         if (target === 'read') { this.selected = 0; this.go('read'); }
-        else if (target === 'library') { this.tab = 1; }
-        else if (target === 'growth') { this.tab = 2; }
-        else { this.tab = 3; }
+        else if (target === 'library') { this.switchTab(1); }
+        else if (target === 'growth') { this.switchTab(2); }
+        else { this.switchTab(3); }
       });
   }
 
@@ -330,7 +428,7 @@ struct Index {
           .onClick(() => {
             if (target === 'search') { this.searchOpen = !this.searchOpen; }
             else if (target === 'period') { this.growthPeriod = this.growthPeriod === '本周' ? '上周' : '本周'; }
-            else { this.view = target; }
+            else { this.setView(target); }
           });
       }
     }.width('100%').padding({ top: 13, bottom: 5 });
@@ -350,8 +448,8 @@ struct Index {
             this.replayLibraryEntrance();
           }
           else if (target === 'themes') { this.filter = '主题'; }
-          else if (target === 'growth') { this.tab = 2; }
-          else { this.view = target; }
+          else if (target === 'growth') { this.switchTab(2); }
+          else { this.setView(target); }
         });
       }
     }.width('100%').height(31);
@@ -385,7 +483,7 @@ struct Index {
           Text('交个朋友').fontFamily(FONT_TITLE).fontSize(24).fontColor(INK);
           Text('一起发现阅读的快乐').fontFamily(FONT_BODY).fontSize(13).fontColor('#347176');
         }.alignItems(HorizontalAlign.Start).position({ x: 16, y: 20 });
-      }.width('100%').height(132).borderRadius(19).clip(true).onClick(() => { this.selected = 0; this.view = 'book'; });
+      }.width('100%').height(132).borderRadius(19).clip(true).onClick(() => { this.selected = 0; this.setView('book'); });
       Row({ space: 8 }) {
         ForEach(['0–3岁', '3–6岁', '6–8岁', '8岁+'], (age: string, i: number) => {
           Column({ space: 4 }) {
@@ -413,7 +511,7 @@ struct Index {
               .scale({ x: this.libraryCardsVisible ? 1 : 0.96, y: this.libraryCardsVisible ? 1 : 0.96 })
               .opacity(this.libraryCardsVisible ? 1 : 0)
               .animation({ duration: 420, delay: index * 90, curve: Curve.EaseOut })
-              .onClick(() => { this.selected = id; this.view = 'book'; });
+              .onClick(() => { this.selected = id; this.setView('book'); });
           });
         }.width('100%');
       } else {
@@ -441,7 +539,7 @@ struct Index {
         Text(sub).fontFamily(FONT_BODY).fontSize(12).fontColor('#668B73');
       }.alignItems(HorizontalAlign.Start).position({ x: 8, y: 10 });
     }.layoutWeight(1).height(118).borderRadius(14).clip(true)
-      .onClick(() => { this.selected = id; this.view = 'book'; });
+      .onClick(() => { this.selected = id; this.setView('book'); });
   }
 
   @Builder
@@ -573,13 +671,14 @@ struct Index {
   @Builder
   CelebrationCharacter() {
     Stack() {
-      GirlCompanion({ reduced: this.reducedMotion, mode: 'celebrate', canvasSize: 200 });
-      Text('★').fontFamily(FONT_TITLE).fontSize(48).fontColor('#FFD43B')
-        .shadow({ radius: 5, color: '#B5781933', offsetY: 3 })
-        .position({ x: 140, y: 15 })
+      Image($r('app.media.motion_reward_girl')).width(220).height(250).objectFit(ImageFit.Contain)
+        .syncLoad(true).opacity(this.rewardPoseOpacity)
         .scale({ x: this.rewardStarScale, y: this.rewardStarScale })
         .translate({ x: 0, y: this.rewardStarOffset })
         .rotate({ angle: this.rewardStarAngle });
+      Image($r('app.media.motion_jump_girl')).width(220).height(250).objectFit(ImageFit.Contain)
+        .syncLoad(true).opacity(this.jumpPoseOpacity).translate({ x: 0, y: this.jumpOffset })
+        .scale({ x: this.jumpScale, y: this.jumpScale });
     }.width(220).height(250);
   }
 
@@ -589,7 +688,7 @@ struct Index {
       if (child) {
         Image($r('app.media.home_wave_body')).width(76).height(76).objectFit(ImageFit.Contain).position({ x: -22, y: -14 });
       } else if (!this.answered) {
-        Image($r('app.media.girl_think_07')).width(72).height(76).objectFit(ImageFit.Contain)
+        Image($r('app.media.motion_think_girl')).width(72).height(76).objectFit(ImageFit.Contain)
           .position({ x: -15, y: -16 }).rotate({ angle: this.aiThinkingAngle });
       } else {
         Image($r('app.media.page_boy')).width(75).height(75).objectFit(ImageFit.Contain).position({ x: -16, y: -11 });
@@ -623,11 +722,11 @@ struct Index {
             Text('一起想一想').fontFamily(FONT_STRONG).fontSize(16).fontColor(INK).width('100%');
             Text(this.answerText()).fontFamily(FONT_BODY).fontSize(16).fontColor('#4D5D78').lineHeight(27).width('100%');
             Image($r('app.media.page_sky')).width('100%').height(112).objectFit(ImageFit.Cover).borderRadius(14)
-              .onClick(() => { this.view = 'listen'; });
+              .onClick(() => { this.setView('listen'); });
             Row() {
               Text('看图，讲给孩子听').fontFamily(FONT_BODY).fontSize(13).fontColor('#38986A').layoutWeight(1);
               Text('↗').fontFamily('HarmonyOS Sans').fontSize(20).fontColor('#1BBF53');
-            }.width('100%').onClick(() => { this.view = 'listen'; });
+            }.width('100%').onClick(() => { this.setView('listen'); });
           }.padding(16).alignItems(HorizontalAlign.Start).backgroundColor(LIGHT).borderRadius(21).layoutWeight(1);
         }.width('100%').alignItems(VerticalAlign.Top);
       } else {
@@ -666,7 +765,8 @@ struct Index {
           .onClick(() => { this.ask(this.aiDraft); });
       }.padding(7).width('100%').backgroundColor(LIGHT).borderRadius(30)
         .shadow({ radius: 9, color: '#386A3110', offsetY: 1 });
-    }.padding({ left: 14, right: 14, top: 8, bottom: 8 }).width('100%').backgroundColor(PAGE);
+    }.padding({ left: 14, right: 14, top: 8, bottom: 8 }).width('100%').backgroundColor(PAGE)
+      .opacity(this.pageContentOpacity).translate({ x: 0, y: this.pageContentOffset });
   }
 
   @Builder
@@ -681,11 +781,11 @@ struct Index {
       }.height(88).width('100%').clip(true);
       Row({ space: 12 }) {
         Image($r('app.media.page_reader')).width(126).height(148).objectFit(ImageFit.Contain)
-          .onClick(() => { this.view = 'pair'; this.pairStep = 0; });
+          .onClick(() => { this.pairStep = 0; this.setView('pair'); });
         Column({ space: 9 }) {
           Row({ space: 5 }) {
             Text('童阅阅读器').fontFamily(FONT_TITLE).fontSize(20).fontColor(INK).layoutWeight(1);
-            Image($r('app.media.page_settings')).width(26).height(26).onClick(() => { this.view = 'device-settings'; });
+            Image($r('app.media.page_settings')).width(26).height(26).onClick(() => { this.setView('device-settings'); });
           }.width('100%');
           Text('RFID 故事伙伴').fontFamily(FONT_BODY).fontSize(13).fontColor('#9AA3B3');
           Text(this.connected ? '● 已连接' : '○ 等待连接').fontFamily(FONT_STRONG).fontSize(14)
@@ -712,7 +812,7 @@ struct Index {
         }.layoutWeight(1).alignItems(HorizontalAlign.Start);
         Image($r('app.media.page_boy')).width(104).height(100).objectFit(ImageFit.Contain);
       }.width('100%').constraintSize({ minHeight: 106 }).padding({ left: 15, right: 4, top: 4, bottom: 4 })
-        .backgroundColor('#DDF9D1').borderRadius(20).onClick(() => { this.tab = 2; this.pageScroller.scrollTo({ xOffset: 0, yOffset: 0 }); });
+        .backgroundColor('#DDF9D1').borderRadius(20).onClick(() => { this.switchTab(2); });
       this.SectionHeading('本周设备使用', '查看详情', 'growth');
       Column({ space: 10 }) {
         Row() {
@@ -741,7 +841,7 @@ struct Index {
       Text(detail).fontFamily(FONT_BODY).fontSize(11).fontColor('#8A96A7').maxLines(1);
     }.layoutWeight(1).padding({ top: 13, bottom: 13 }).backgroundColor(target === 'focus' && this.focusMode ? '#F0EBFF' : LIGHT)
       .border({ width: target === 'focus' && this.focusMode ? 1 : 0, color: '#D5C6FA' }).borderRadius(17)
-      .onClick(() => { if (target === 'focus') { this.focusMode = !this.focusMode; } else { this.view = target; } });
+      .onClick(() => { if (target === 'focus') { this.focusMode = !this.focusMode; } else { this.setView(target); } });
   }
 
   @Builder
@@ -754,14 +854,14 @@ struct Index {
         Text(detail).fontSize(13).fontFamily(FONT_BODY).fontColor(MUTED);
       }.layoutWeight(1).alignItems(HorizontalAlign.Start);
       Text('›').fontSize(24).fontFamily(FONT_BODY).fontColor('#98A5A7');
-    }.width('100%').padding(11).backgroundColor(LIGHT).borderRadius(16).onClick(() => { this.view = target; });
+    }.width('100%').padding(11).backgroundColor(LIGHT).borderRadius(16).onClick(() => { this.setView(target); });
   }
 
   @Builder
   Detail() {
     Column({ space: 15 }) {
       Row() {
-        Text('‹  返回').fontSize(17).fontFamily(FONT_BODY).fontWeight(FontWeight.Bold).fontFamily(FONT_STRONG).fontColor('#188C4A').onClick(() => { this.view = ''; });
+        Text('‹  返回').fontSize(17).fontFamily(FONT_BODY).fontWeight(FontWeight.Bold).fontFamily(FONT_STRONG).fontColor('#188C4A').onClick(() => { this.setView(''); });
         Blank();
         Text(this.child).fontSize(14).fontFamily(FONT_BODY).fontColor(MUTED);
       }.width('100%');
@@ -800,7 +900,7 @@ struct Index {
             }.layoutWeight(1).alignItems(HorizontalAlign.Start);
             Text('›').fontSize(24).fontColor('#8A99A9');
           }.width('100%').padding(12).backgroundColor(LIGHT).borderRadius(18)
-            .onClick(() => { this.selected = id; this.view = 'book'; });
+            .onClick(() => { this.selected = id; this.setView('book'); });
         });
         this.Action('添加绘本与标签', '#DFF5DA', 'pair');
       } else if (this.view === 'history') {
@@ -808,7 +908,7 @@ struct Index {
         ForEach(['为什么天空是蓝色的？', '为什么会下雨？', '星星为什么会发光？'], (question: string) => {
           Text(question + '  ›').fontFamily(FONT_BODY).fontSize(17).fontColor(INK).padding(18)
             .width('100%').backgroundColor(LIGHT).borderRadius(18)
-            .onClick(() => { this.ask(question); this.tab = 3; this.view = ''; });
+            .onClick(() => { this.ask(question); this.switchTab(3); });
         });
       } else if (this.view === 'listen') {
         Text('和孩子一起读').fontFamily(FONT_TITLE).fontSize(27).fontColor(INK).width('100%');
@@ -858,7 +958,9 @@ struct Index {
             Blank().layoutWeight(1).height(6).backgroundColor(step <= this.pairStep ? LIME : '#E6EAE5').borderRadius(5);
           });
         }.width('100%');
-        GirlCompanion({ reduced: this.reducedMotion, mode: this.pairStep === 2 ? 'celebrate' : 'think', canvasSize: 178 });
+        Image(this.pairStep === 2 ? $r('app.media.motion_jump_girl') : $r('app.media.motion_think_girl'))
+          .width(178).height(205).objectFit(ImageFit.Contain).syncLoad(true)
+          .rotate({ angle: this.pairStep === 2 || this.reducedMotion ? 0 : this.aiThinkingAngle });
         Text(['先叫醒阅读器', '把标签轻轻靠近', '故事已经准备好'][this.pairStep])
           .fontSize(25).fontFamily(FONT_BODY).fontWeight(FontWeight.Bold).fontFamily(FONT_STRONG).fontColor(INK).textAlign(TextAlign.Center);
         Text(['打开阅读器，确认绿色指示灯亮起。', '将绘本背面的 RFID 标签贴近感应区域。', '已将《小熊找朋友》与标签关联。'][this.pairStep])
@@ -871,7 +973,7 @@ struct Index {
           Button(name + (this.child === name ? '  ✓' : '')).width('100%').height(62)
             .backgroundColor(this.child === name ? '#DFF6E5' : LIGHT)
             .fontColor(INK).fontSize(20).fontFamily(FONT_BODY).fontWeight(FontWeight.Bold).fontFamily(FONT_STRONG).borderRadius(18)
-            .onClick(() => { this.child = name; this.view = ''; });
+            .onClick(() => { this.child = name; this.setView(''); });
         });
       } else if (this.view === 'privacy') {
         Text('把选择留给家长').fontSize(25).fontFamily(FONT_BODY).fontWeight(FontWeight.Bold).fontFamily(FONT_STRONG).fontColor(INK).width('100%');
@@ -881,7 +983,7 @@ struct Index {
           .backgroundColor('#DFF6E5').fontColor(INK).borderRadius(16)
           .onClick(() => { this.reducedMotion = !this.reducedMotion; });
       } else {
-        GirlCompanion({ reduced: this.reducedMotion, mode: 'wave', canvasSize: 160 });
+        HomeWelcomeMascot({ reduced: true, canvasSize: 160 });
         Text(this.view === 'packs' ? '故事已装进口袋' : (this.view === 'schedule' ? '约好每天的共读时光' : '让阅读器听清这一句'))
           .fontSize(25).fontFamily(FONT_BODY).fontWeight(FontWeight.Bold).fontFamily(FONT_STRONG).fontColor(INK).textAlign(TextAlign.Center);
         Text(this.view === 'packs' ? '已安装 12 本离线故事。新增绘本时，请导入知识包并配对标签。' : (this.view === 'schedule' ? '今天 19:30，用 15 分钟陪孩子进入故事。' : '安静地读一句绘本正文，阅读器会尝试找到当前句段。'))
@@ -907,7 +1009,8 @@ struct Index {
             .fontColor(this.tab === id ? '#15984C' : '#89949A').height(22);
         }.layoutWeight(1).height(64).justifyContent(FlexAlign.Center)
           .backgroundColor(this.tab === id ? '#EAF7ED' : '#FFFDF7').borderRadius(16)
-          .onClick(() => { this.tab = id; this.view = ''; this.pageScroller.scrollTo({ xOffset: 0, yOffset: 0 }); });
+          .animation({ duration: 210, curve: Curve.EaseInOut })
+          .onClick(() => { this.switchTab(id); });
       });
     }.padding({ left: 8, right: 8, top: 6, bottom: 7 }).width('100%').backgroundColor('#FFFDF7');
   }
@@ -921,7 +1024,8 @@ struct Index {
         else if (this.tab === 2) { this.Growth(); }
         else if (this.tab === 3) { this.AI(); }
         else { this.Device(); }
-      }.layoutWeight(1).scrollBar(BarState.Off).width('100%');
+      }.layoutWeight(1).scrollBar(BarState.Off).width('100%')
+        .opacity(this.pageContentOpacity).translate({ x: 0, y: this.pageContentOffset });
       if (this.view.length === 0 && this.tab === 3) { this.AIComposer(); }
       if (this.view.length === 0) { this.Navigation(); }
     }.width('100%').height('100%').backgroundColor(this.pageColor());
