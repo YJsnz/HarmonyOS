@@ -27,6 +27,7 @@ design/
 !design/
 design/*
 !design/TYPOGRAPHY.md
+!design/MOTION_PREVIEW.html
 *.7z
 ART_DIRECTION.md
 PRODUCT_EXPERIENCE.md
@@ -54,6 +55,7 @@ entry/src/main/resources/base/media/*
 !entry/src/main/resources/base/media/motion_reward_boy.png
 !entry/src/main/resources/base/media/motion_thinking_child.png
 !entry/src/main/resources/base/media/motion_happy_child.png
+!entry/src/main/resources/base/media/rig_*.png
 !entry/src/main/resources/base/media/nav_home.svg
 !entry/src/main/resources/base/media/nav_book.svg
 !entry/src/main/resources/base/media/nav_growth.svg

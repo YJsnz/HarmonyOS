@@ -1,3 +1,4 @@
+import { ReferenceCompanion } from '../components/ReferenceCompanion';
 import { HomeWelcomeMascot } from '../components/HomeWelcomeMascot';
 import { ReadingRadar } from '../components/ReadingRadar';
 import { LengthMetrics } from '@kit.ArkUI';
@@ -36,21 +37,12 @@ struct Index {
   @State deviceVolume: number = 65;
   @State dailyMinutes: number = 60;
   @State libraryCardsVisible: boolean = false;
-  @State aiThinkingAngle: number = 0;
-  @State rewardStarScale: number = 1;
-  @State rewardStarOffset: number = 0;
-  @State rewardStarAngle: number = 0;
-  @State jumpOffset: number = 0;
-  @State jumpScale: number = 1;
   @State pageContentOpacity: number = 1;
   @State pageContentOffset: number = 0;
   private pageScroller: Scroller = new Scroller();
   private libraryEntranceTimer: number = -1;
   private aiResponseTimer: number = -1;
-  private aiThinkingTimer: number = -1;
-  private rewardStarTimer: number = -1;
   private aiThinkingGeneration: number = 0;
-  private rewardGeneration: number = 0;
   private pageTransitionGeneration: number = 0;
   private titles: string[] = ['小小探险家', '月亮的礼物', '神奇的种子'];
 
@@ -64,10 +56,7 @@ struct Index {
   aboutToDisappear(): void {
     clearTimeout(this.libraryEntranceTimer);
     clearTimeout(this.aiResponseTimer);
-    clearTimeout(this.aiThinkingTimer);
-    clearTimeout(this.rewardStarTimer);
     this.aiThinkingGeneration++;
-    this.rewardGeneration++;
     this.pageTransitionGeneration++;
   }
 
@@ -133,38 +122,17 @@ struct Index {
   private ask(question: string): void {
     if (question.trim().length === 0) { return; }
     clearTimeout(this.aiResponseTimer);
-    clearTimeout(this.aiThinkingTimer);
     this.aiThinkingGeneration++;
     const generation = this.aiThinkingGeneration;
     this.question = question.trim();
     this.answered = false;
-    this.aiThinkingAngle = 0;
     this.aiDraft = '';
     this.aiVoiceHint = false;
-    if (!this.reducedMotion) {
-      this.aiThinkingTimer = setTimeout(() => { this.thinkingTiltStep(0, generation); }, 60);
-    }
     this.aiResponseTimer = setTimeout(() => {
       if (generation !== this.aiThinkingGeneration) { return; }
       this.aiThinkingGeneration++;
       this.answered = true;
-      this.aiThinkingAngle = 0;
-    }, 1050);
-  }
-
-  private thinkingTiltStep(step: number, generation: number): void {
-    if (this.answered || this.reducedMotion || generation !== this.aiThinkingGeneration) { return; }
-    const angles: number[] = [-8, 5, 0];
-    const durations: number[] = [250, 300, 260];
-    this.getUIContext().animateTo({
-      duration: durations[step],
-      curve: Curve.EaseInOut,
-      onFinish: () => {
-        if (step < angles.length - 1 && !this.answered && generation === this.aiThinkingGeneration) {
-          this.aiThinkingTimer = setTimeout(() => { this.thinkingTiltStep(step + 1, generation); }, 35);
-        }
-      }
-    }, () => { this.aiThinkingAngle = angles[step]; });
+      }, this.reducedMotion ? 700 : 2600);
   }
 
   private replayLibraryEntrance(): void {
@@ -175,68 +143,6 @@ struct Index {
       return;
     }
     this.libraryEntranceTimer = setTimeout(() => { this.libraryCardsVisible = true; }, 50);
-  }
-
-  private startRewardStarBounce(): void {
-    clearTimeout(this.rewardStarTimer);
-    this.rewardGeneration++;
-    const generation = this.rewardGeneration;
-    this.rewardStarScale = this.reducedMotion ? 1 : 0.88;
-    this.rewardStarOffset = this.reducedMotion ? 0 : 14;
-    this.rewardStarAngle = this.reducedMotion ? 0 : -12;
-    if (!this.reducedMotion) {
-      this.rewardStarTimer = setTimeout(() => { this.rewardStarBounceStep(0, generation); }, 70);
-    }
-  }
-
-  private rewardStarBounceStep(step: number, generation: number): void {
-    if (generation !== this.rewardGeneration || this.reducedMotion) { return; }
-    const scales: number[] = [1.08, 0.97, 1.03, 1];
-    const offsets: number[] = [-12, 3, -4, 0];
-    const angles: number[] = [10, -3, 2, 0];
-    const durations: number[] = [190, 140, 160, 140];
-    this.getUIContext().animateTo({
-      duration: durations[step],
-      curve: Curve.EaseOut,
-      onFinish: () => {
-        if (step < scales.length - 1 && generation === this.rewardGeneration) {
-          this.rewardStarBounceStep(step + 1, generation);
-        }
-      }
-    }, () => {
-      this.rewardStarScale = scales[step];
-      this.rewardStarOffset = offsets[step];
-      this.rewardStarAngle = angles[step];
-    });
-  }
-
-  private startHappyJump(): void {
-    clearTimeout(this.rewardStarTimer);
-    const generation = ++this.rewardGeneration;
-    this.jumpOffset = 0;
-    this.jumpScale = 1;
-    if (!this.reducedMotion) {
-      this.rewardStarTimer = setTimeout(() => { this.happyJumpStep(0, generation); }, 260);
-    }
-  }
-
-  private happyJumpStep(step: number, generation: number): void {
-    if (generation !== this.rewardGeneration || this.reducedMotion) { return; }
-    const offsets: number[] = [-22, -48, 0, 0];
-    const scales: number[] = [1.03, 1.02, 0.96, 1];
-    const durations: number[] = [190, 230, 210, 150];
-    this.getUIContext().animateTo({
-      duration: durations[step],
-      curve: Curve.EaseInOut,
-      onFinish: () => {
-        if (step < offsets.length - 1 && generation === this.rewardGeneration) {
-          this.happyJumpStep(step + 1, generation);
-        }
-      }
-    }, () => {
-      this.jumpOffset = offsets[step];
-      this.jumpScale = scales[step];
-    });
   }
 
   private answerText(): string {
@@ -257,14 +163,12 @@ struct Index {
         this.complete = true;
         this.view = 'finish';
         this.pageScroller.scrollTo({ xOffset: 0, yOffset: 0 });
-        this.startRewardStarBounce();
       });
     }
     else if (target === 'pair-next') {
       this.transitionPage(() => {
         if (this.pairStep < 2) {
           this.pairStep++;
-          if (this.pairStep === 2) { this.startHappyJump(); }
         } else { this.connected = true; this.view = ''; this.tab = 4; }
         this.pageScroller.scrollTo({ xOffset: 0, yOffset: 0 });
       });
@@ -475,8 +379,8 @@ struct Index {
       Stack() {
         Row() {
           Blank().layoutWeight(1);
-          Image($r('app.media.motion_reading_boy')).width(162).height(140).objectFit(ImageFit.Contain).syncLoad(true)
-            .translate({ x: 0, y: this.libraryCardsVisible ? 0 : 16 })
+          Stack() { ReferenceCompanion({ kind: 'reading', canvasSize: 148, reduced: this.reducedMotion }); }
+            .width(162).height(140).translate({ x: 0, y: this.libraryCardsVisible ? 0 : 16 })
             .scale({ x: this.libraryCardsVisible ? 1 : 0.92, y: this.libraryCardsVisible ? 1 : 0.92 })
             .opacity(this.libraryCardsVisible ? 1 : 0)
             .animation({ duration: this.reducedMotion ? 0 : 480, curve: Curve.EaseOut });
@@ -674,19 +578,14 @@ struct Index {
 
   @Builder
   CelebrationCharacter() {
-    Stack() {
-      Image($r('app.media.motion_reward_boy')).width(220).height(250).objectFit(ImageFit.Contain)
-        .syncLoad(true)
-        .scale({ x: this.rewardStarScale, y: this.rewardStarScale })
-        .translate({ x: 0, y: this.rewardStarOffset })
-        .rotate({ angle: this.rewardStarAngle });
-    }.width(220).height(250);
+    Stack() { ReferenceCompanion({ kind: 'reward', canvasSize: 220, reduced: this.reducedMotion }); }
+      .width(220).height(250);
   }
 
   @Builder
   HappyCharacter() {
-    Image($r('app.media.motion_happy_child')).width(178).height(205).objectFit(ImageFit.Contain).syncLoad(true)
-      .translate({ x: 0, y: this.jumpOffset }).scale({ x: this.jumpScale, y: this.jumpScale });
+    Stack() { ReferenceCompanion({ kind: 'happy', canvasSize: 178, reduced: this.reducedMotion }); }
+      .width(178).height(205);
   }
 
   @Builder
@@ -735,8 +634,7 @@ struct Index {
         }.width('100%').alignItems(VerticalAlign.Top);
       } else {
         Row({ space: 10 }) {
-          Image($r('app.media.motion_thinking_child')).width(112).height(112).objectFit(ImageFit.Contain).syncLoad(true)
-            .rotate({ angle: this.aiThinkingAngle, centerX: '50%', centerY: '80%' });
+          ReferenceCompanion({ kind: 'thinking', canvasSize: 112, reduced: this.reducedMotion });
           Text('让我想一想…').fontFamily(FONT_STRONG).fontSize(16).fontColor('#526681')
             .padding({ left: 16, right: 20, top: 15, bottom: 15 })
             .backgroundColor(LIGHT).borderRadius(19);

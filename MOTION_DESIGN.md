@@ -14,9 +14,17 @@
 ## 播放与触发
 
 - 绘本馆：绿衣读书男孩和卡片错峰入场，单次约 480ms。
-- 共读奖励：蓝衣抱星男孩分四段轻弹，单次约 630ms。
-- AI 等待：黄紫衣女孩歪头，左右回正约 940ms，随后显示回答。
-- RFID 配对成功：绿衣黄裙女孩上升、落地、回弹，单次约 780ms。
+- 共读奖励：蓝衣男孩与星星、双手独立分层，星星轻摇与上移，单次约 2340ms。
+- AI 等待：黄紫衣女孩头部与身体独立分层，歪头、停顿、回正，单次约 2200ms，随后显示回答。
+- RFID 配对成功：绿衣黄裙女孩双臂与身体独立分层，抬手、起跳、落地，单次约 1800ms。
 - 页面切换：130ms 淡出，240ms 淡入与轻位移；快速导航使用代次标识取消过期回调。
-- 开启减少动态效果时呈现静态角色；各动作播放一次后静止，等待下一次交互。
+- 开启减少动态效果时呈现原静态角色；各动作播放一次后待机 10 秒，点击可以提前重播，动作中点击不会打断动作。
+
+## 分层资源与预览
+
+`rig_reading.png`、`rig_reward.png`、`rig_thinking.png`、`rig_happy.png` 是使用内置 image_gen 编辑原角色得到的双格透明图集。左格保留静止身体，右格保留活动部位；应用以两个常驻视口读取，不逐帧换纹理。读书男孩活动头部，抱星男孩活动星星和双手，思考女孩活动头发、脸和手，开心女孩分别活动双臂。
+
+分层提示词：Edit this exact existing character image into a two-cell animation rig atlas. Preserve identity, face, costume, proportions and rendering. Wide 2:1 transparent PNG, two equal square cells. Left: stationary base. Right: detached moving part in its original coordinate system. Slight overlap at joints. No text, backgrounds, glow, ghost copies or reposing.
+
+`ReferenceCompanion.ets` 负责关节对齐、连续补间、10 秒待机、点击重播和生命周期回调取消。`design/MOTION_PREVIEW.html` 可以直接打开，含四个角色、暂停与重播控件，复用相同的动作时长和图集对齐参数。
 

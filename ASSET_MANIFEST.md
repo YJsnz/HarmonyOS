@@ -11,6 +11,7 @@
 - `motion_thinking_child.png`：示意图黄衣紫背带、黄色发圈女孩；AI 等待回答时歪头。
 - `motion_happy_child.png`：示意图绿衣黄裙女孩举手庆祝；RFID 配对成功时跳跃一次。
 - 上述四张插画分别以原示意图对应人物为参照生成，使用预加载固定图层配合 ArkUI 原生位移、缩放与旋转，不逐帧替换图片。动作触发后回到静态，等待下一次交互。
+- `rig_reading.png`、`rig_reward.png`、`rig_thinking.png`、`rig_happy.png`：在上述四张插画基础上生成的双格分层图集。身体与头部、星星双手、双臂分别常驻；`ReferenceCompanion` 控制活动部位的连续旋转与位移，播放后待机 10 秒。开启减少动态效果时使用原静态插画。
 - 首页挥手继续使用 `home_wave_body.png`、`home_wave_arm.png` 两层骨骼式原生旋转；绘本卡片采用错峰淡入和轻微上移。页面之间统一使用短暂淡出、轻移位、淡入过渡，并尊重“减少动态效果”设置。
 - `girl_wave_00..07.png`、`girl_reading_00..07.png`、`girl_think_00..07.png`、`girl_celebrate_00..07.png`：早期动作序列资源，当前页面不再引用。
 
