@@ -6,7 +6,11 @@
 
 - `home_wave_body.png`、`home_wave_arm.png`：首页女孩身体与手臂的透明分层图。两层常驻，不切换帧；手臂围绕肩部以原生旋转完成约 2.34 秒挥手，之后待机约 10 秒。
 - `home_garden.svg`、`home_reading_banner.jpg`、`home_recommend.svg`、`home_books.svg`、`home_checkin.svg`、`home_chat.svg`：首页场景装饰、共读横幅与快捷入口。
-- `motion_reward_girl.png`、`motion_think_girl.png`、`motion_jump_girl.png`：按主页女孩造型重新生成的透明动作插画，分别用于奖励抱星、思考歪头、完成跳跃。使用预加载的固定图层配合 ArkUI 原生位移、缩放、旋转与淡入淡出，不逐帧替换图片，避免闪帧。
+- `motion_reading_boy.png`：示意图最左侧绿衣卷发男孩，手持蓝色绘本；绘本馆卡片入场时轻移位、缩放与淡入。
+- `motion_reward_boy.png`：示意图蓝衣棕发男孩抱黄色星星；完成共读时轻弹一次。
+- `motion_thinking_child.png`：示意图黄衣紫背带、黄色发圈女孩；AI 等待回答时歪头。
+- `motion_happy_child.png`：示意图绿衣黄裙女孩举手庆祝；RFID 配对成功时跳跃一次。
+- 上述四张插画分别以原示意图对应人物为参照生成，使用预加载固定图层配合 ArkUI 原生位移、缩放与旋转，不逐帧替换图片。动作触发后回到静态，等待下一次交互。
 - 首页挥手继续使用 `home_wave_body.png`、`home_wave_arm.png` 两层骨骼式原生旋转；绘本卡片采用错峰淡入和轻微上移。页面之间统一使用短暂淡出、轻移位、淡入过渡，并尊重“减少动态效果”设置。
 - `girl_wave_00..07.png`、`girl_reading_00..07.png`、`girl_think_00..07.png`、`girl_celebrate_00..07.png`：早期动作序列资源，当前页面不再引用。
 

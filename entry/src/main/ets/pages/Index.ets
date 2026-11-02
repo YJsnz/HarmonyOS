@@ -40,8 +40,6 @@ struct Index {
   @State rewardStarScale: number = 1;
   @State rewardStarOffset: number = 0;
   @State rewardStarAngle: number = 0;
-  @State rewardPoseOpacity: number = 1;
-  @State jumpPoseOpacity: number = 0;
   @State jumpOffset: number = 0;
   @State jumpScale: number = 1;
   @State pageContentOpacity: number = 1;
@@ -183,13 +181,9 @@ struct Index {
     clearTimeout(this.rewardStarTimer);
     this.rewardGeneration++;
     const generation = this.rewardGeneration;
-    this.rewardStarScale = this.reducedMotion ? 1 : 0.45;
+    this.rewardStarScale = this.reducedMotion ? 1 : 0.88;
     this.rewardStarOffset = this.reducedMotion ? 0 : 14;
     this.rewardStarAngle = this.reducedMotion ? 0 : -12;
-    this.rewardPoseOpacity = 1;
-    this.jumpPoseOpacity = 0;
-    this.jumpOffset = 0;
-    this.jumpScale = 1;
     if (!this.reducedMotion) {
       this.rewardStarTimer = setTimeout(() => { this.rewardStarBounceStep(0, generation); }, 70);
     }
@@ -197,7 +191,7 @@ struct Index {
 
   private rewardStarBounceStep(step: number, generation: number): void {
     if (generation !== this.rewardGeneration || this.reducedMotion) { return; }
-    const scales: number[] = [1.24, 0.92, 1.08, 1];
+    const scales: number[] = [1.08, 0.97, 1.03, 1];
     const offsets: number[] = [-12, 3, -4, 0];
     const angles: number[] = [10, -3, 2, 0];
     const durations: number[] = [190, 140, 160, 140];
@@ -207,8 +201,6 @@ struct Index {
       onFinish: () => {
         if (step < scales.length - 1 && generation === this.rewardGeneration) {
           this.rewardStarBounceStep(step + 1, generation);
-        } else if (generation === this.rewardGeneration) {
-          this.showJumpPose(generation);
         }
       }
     }, () => {
@@ -218,13 +210,14 @@ struct Index {
     });
   }
 
-  private showJumpPose(generation: number): void {
-    if (generation !== this.rewardGeneration || this.reducedMotion) { return; }
-    this.getUIContext().animateTo({ duration: 240, curve: Curve.EaseInOut }, () => {
-      this.rewardPoseOpacity = 0;
-      this.jumpPoseOpacity = 1;
-    });
-    this.rewardStarTimer = setTimeout(() => { this.happyJumpStep(0, generation); }, 260);
+  private startHappyJump(): void {
+    clearTimeout(this.rewardStarTimer);
+    const generation = ++this.rewardGeneration;
+    this.jumpOffset = 0;
+    this.jumpScale = 1;
+    if (!this.reducedMotion) {
+      this.rewardStarTimer = setTimeout(() => { this.happyJumpStep(0, generation); }, 260);
+    }
   }
 
   private happyJumpStep(step: number, generation: number): void {
@@ -269,7 +262,10 @@ struct Index {
     }
     else if (target === 'pair-next') {
       this.transitionPage(() => {
-        if (this.pairStep < 2) { this.pairStep++; } else { this.connected = true; this.view = ''; this.tab = 4; }
+        if (this.pairStep < 2) {
+          this.pairStep++;
+          if (this.pairStep === 2) { this.startHappyJump(); }
+        } else { this.connected = true; this.view = ''; this.tab = 4; }
         this.pageScroller.scrollTo({ xOffset: 0, yOffset: 0 });
       });
     } else {
@@ -477,13 +473,21 @@ struct Index {
         });
       }.width('100%');
       Stack() {
-        Image($r('app.media.page_library')).width('100%').height(132).objectFit(ImageFit.Cover);
+        Row() {
+          Blank().layoutWeight(1);
+          Image($r('app.media.motion_reading_boy')).width(162).height(140).objectFit(ImageFit.Contain).syncLoad(true)
+            .translate({ x: 0, y: this.libraryCardsVisible ? 0 : 16 })
+            .scale({ x: this.libraryCardsVisible ? 1 : 0.92, y: this.libraryCardsVisible ? 1 : 0.92 })
+            .opacity(this.libraryCardsVisible ? 1 : 0)
+            .animation({ duration: this.reducedMotion ? 0 : 480, curve: Curve.EaseOut });
+        }.width('100%');
         Column({ space: 2 }) {
           Text('和好故事').fontFamily(FONT_TITLE).fontSize(24).fontColor(INK);
           Text('交个朋友').fontFamily(FONT_TITLE).fontSize(24).fontColor(INK);
           Text('一起发现阅读的快乐').fontFamily(FONT_BODY).fontSize(13).fontColor('#347176');
         }.alignItems(HorizontalAlign.Start).position({ x: 16, y: 20 });
-      }.width('100%').height(132).borderRadius(19).clip(true).onClick(() => { this.selected = 0; this.setView('book'); });
+      }.width('100%').height(132).backgroundColor('#DBF6E8').borderRadius(19).clip(true)
+        .onClick(() => { this.selected = 0; this.setView('book'); });
       Row({ space: 8 }) {
         ForEach(['0–3岁', '3–6岁', '6–8岁', '8岁+'], (age: string, i: number) => {
           Column({ space: 4 }) {
@@ -671,15 +675,18 @@ struct Index {
   @Builder
   CelebrationCharacter() {
     Stack() {
-      Image($r('app.media.motion_reward_girl')).width(220).height(250).objectFit(ImageFit.Contain)
-        .syncLoad(true).opacity(this.rewardPoseOpacity)
+      Image($r('app.media.motion_reward_boy')).width(220).height(250).objectFit(ImageFit.Contain)
+        .syncLoad(true)
         .scale({ x: this.rewardStarScale, y: this.rewardStarScale })
         .translate({ x: 0, y: this.rewardStarOffset })
         .rotate({ angle: this.rewardStarAngle });
-      Image($r('app.media.motion_jump_girl')).width(220).height(250).objectFit(ImageFit.Contain)
-        .syncLoad(true).opacity(this.jumpPoseOpacity).translate({ x: 0, y: this.jumpOffset })
-        .scale({ x: this.jumpScale, y: this.jumpScale });
     }.width(220).height(250);
+  }
+
+  @Builder
+  HappyCharacter() {
+    Image($r('app.media.motion_happy_child')).width(178).height(205).objectFit(ImageFit.Contain).syncLoad(true)
+      .translate({ x: 0, y: this.jumpOffset }).scale({ x: this.jumpScale, y: this.jumpScale });
   }
 
   @Builder
@@ -687,9 +694,6 @@ struct Index {
     Stack() {
       if (child) {
         Image($r('app.media.home_wave_body')).width(76).height(76).objectFit(ImageFit.Contain).position({ x: -22, y: -14 });
-      } else if (!this.answered) {
-        Image($r('app.media.motion_think_girl')).width(72).height(76).objectFit(ImageFit.Contain)
-          .position({ x: -15, y: -16 }).rotate({ angle: this.aiThinkingAngle });
       } else {
         Image($r('app.media.page_boy')).width(75).height(75).objectFit(ImageFit.Contain).position({ x: -16, y: -11 });
       }
@@ -731,11 +735,12 @@ struct Index {
         }.width('100%').alignItems(VerticalAlign.Top);
       } else {
         Row({ space: 10 }) {
-          this.ChatAvatar(false);
+          Image($r('app.media.motion_thinking_child')).width(112).height(112).objectFit(ImageFit.Contain).syncLoad(true)
+            .rotate({ angle: this.aiThinkingAngle, centerX: '50%', centerY: '80%' });
           Text('让我想一想…').fontFamily(FONT_STRONG).fontSize(16).fontColor('#526681')
             .padding({ left: 16, right: 20, top: 15, bottom: 15 })
             .backgroundColor(LIGHT).borderRadius(19);
-        }.width('100%').alignItems(VerticalAlign.Top);
+        }.width('100%').alignItems(VerticalAlign.Center);
       }
       Text('你可能还想问').fontFamily(FONT_STRONG).fontSize(15).fontColor('#7B879A').width('100%');
       Flex({ direction: FlexDirection.Row, wrap: FlexWrap.Wrap, space: { main: LengthMetrics.vp(8), cross: LengthMetrics.vp(8) } }) {
@@ -958,9 +963,11 @@ struct Index {
             Blank().layoutWeight(1).height(6).backgroundColor(step <= this.pairStep ? LIME : '#E6EAE5').borderRadius(5);
           });
         }.width('100%');
-        Image(this.pairStep === 2 ? $r('app.media.motion_jump_girl') : $r('app.media.motion_think_girl'))
-          .width(178).height(205).objectFit(ImageFit.Contain).syncLoad(true)
-          .rotate({ angle: this.pairStep === 2 || this.reducedMotion ? 0 : this.aiThinkingAngle });
+        if (this.pairStep === 2) {
+          this.HappyCharacter();
+        } else {
+          Image($r('app.media.motion_reading_boy')).width(178).height(205).objectFit(ImageFit.Contain).syncLoad(true);
+        }
         Text(['先叫醒阅读器', '把标签轻轻靠近', '故事已经准备好'][this.pairStep])
           .fontSize(25).fontFamily(FONT_BODY).fontWeight(FontWeight.Bold).fontFamily(FONT_STRONG).fontColor(INK).textAlign(TextAlign.Center);
         Text(['打开阅读器，确认绿色指示灯亮起。', '将绘本背面的 RFID 标签贴近感应区域。', '已将《小熊找朋友》与标签关联。'][this.pairStep])

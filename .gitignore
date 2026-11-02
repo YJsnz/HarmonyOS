@@ -50,7 +50,10 @@ entry/src/main/resources/base/media/*
 !entry/src/main/resources/base/media/girl_reading_*.png
 !entry/src/main/resources/base/media/girl_think_*.png
 !entry/src/main/resources/base/media/girl_celebrate_*.png
-!entry/src/main/resources/base/media/motion_*_girl.png
+!entry/src/main/resources/base/media/motion_reading_boy.png
+!entry/src/main/resources/base/media/motion_reward_boy.png
+!entry/src/main/resources/base/media/motion_thinking_child.png
+!entry/src/main/resources/base/media/motion_happy_child.png
 !entry/src/main/resources/base/media/nav_home.svg
 !entry/src/main/resources/base/media/nav_book.svg
 !entry/src/main/resources/base/media/nav_growth.svg
